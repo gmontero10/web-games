@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Space Defender - Protect Earth!</title>
     <style>
         * {
@@ -19,6 +19,8 @@
             align-items: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
+            touch-action: none;
+            -webkit-touch-callout: none;
         }
 
         #gameContainer {
@@ -146,6 +148,133 @@
         .shield-icon { background: #4a9eff; }
         .rapid-icon { background: #ffd700; }
         .spread-icon { background: #ff6b6b; }
+
+        /* Mobile Controls */
+        #mobileControls {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .mobile-btn {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(74, 158, 255, 0.3);
+            border: 3px solid rgba(74, 158, 255, 0.6);
+            pointer-events: auto;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 24px;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.1s;
+        }
+
+        .mobile-btn:active, .mobile-btn.active {
+            background: rgba(74, 158, 255, 0.6);
+        }
+
+        #joystickArea {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: rgba(74, 158, 255, 0.2);
+            border: 3px solid rgba(74, 158, 255, 0.4);
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystickKnob {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(74, 158, 255, 0.6);
+            border: 3px solid rgba(74, 158, 255, 0.8);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        #fireBtn {
+            right: 30px;
+            bottom: 40px;
+            width: 100px;
+            height: 100px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #pauseBtn {
+            right: 30px;
+            bottom: 160px;
+            width: 50px;
+            height: 50px;
+            font-size: 14px;
+        }
+
+        /* Show mobile controls on touch devices */
+        @media (pointer: coarse), (max-width: 900px) {
+            #mobileControls {
+                display: block;
+            }
+
+            #gameContainer {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 200px;
+                border: none;
+                border-radius: 0;
+            }
+
+            #gameCanvas {
+                width: 100% !important;
+                height: 100% !important;
+                border-radius: 0;
+            }
+
+            .instructions span {
+                display: inline;
+            }
+
+            .instructions .desktop-only {
+                display: none;
+            }
+
+            .instructions .mobile-only {
+                display: block;
+            }
+
+            body {
+                align-items: flex-start;
+            }
+        }
+
+        .instructions .mobile-only {
+            display: none;
+        }
+
+        @media (pointer: coarse), (max-width: 900px) {
+            .instructions .mobile-only {
+                display: block;
+                margin-top: 10px;
+                color: #4a9eff;
+            }
+        }
     </style>
 </head>
 <body>
@@ -160,9 +289,10 @@
             <h1>Space Defender</h1>
             <p class="subtitle">Protect Earth from the Asteroid Storm!</p>
             <div class="instructions">
-                <span>WASD</span> or <span>Arrow Keys</span> - Move your ship<br>
+                <span class="desktop-only"><span>WASD</span> or <span>Arrow Keys</span> - Move your ship<br>
                 <span>SPACE</span> or <span>Click</span> - Fire lasers<br>
-                <span>P</span> - Pause game
+                <span>P</span> - Pause game</span>
+                <span class="mobile-only">Use the joystick to move and FIRE button to shoot!</span>
             </div>
             <button id="startBtn">Start Mission</button>
             <div class="powerup-info">
@@ -186,6 +316,15 @@
             <div id="highScore">High Score: 0</div>
             <button id="restartBtn">Play Again</button>
         </div>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobileControls">
+        <div id="joystickArea">
+            <div id="joystickKnob"></div>
+        </div>
+        <div id="fireBtn" class="mobile-btn">FIRE</div>
+        <div id="pauseBtn" class="mobile-btn">| |</div>
     </div>
 
     <script>
@@ -749,8 +888,163 @@
         document.getElementById('startBtn').addEventListener('click', startGame);
         document.getElementById('restartBtn').addEventListener('click', startGame);
 
+        // Mobile touch controls
+        const joystickArea = document.getElementById('joystickArea');
+        const joystickKnob = document.getElementById('joystickKnob');
+        const fireBtn = document.getElementById('fireBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+
+        let joystickActive = false;
+        let joystickTouchId = null;
+        const joystickCenter = { x: 75, y: 75 };
+        const joystickMaxDist = 50;
+
+        function handleJoystickMove(touchX, touchY) {
+            const rect = joystickArea.getBoundingClientRect();
+            const x = touchX - rect.left - joystickCenter.x;
+            const y = touchY - rect.top - joystickCenter.y;
+
+            const dist = Math.sqrt(x * x + y * y);
+            const clampedDist = Math.min(dist, joystickMaxDist);
+            const angle = Math.atan2(y, x);
+
+            const knobX = Math.cos(angle) * clampedDist;
+            const knobY = Math.sin(angle) * clampedDist;
+
+            joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+            // Update player movement based on joystick position
+            const normalizedX = knobX / joystickMaxDist;
+            const normalizedY = knobY / joystickMaxDist;
+
+            // Apply deadzone
+            const deadzone = 0.2;
+            player.dx = Math.abs(normalizedX) > deadzone ? normalizedX * player.speed : 0;
+            player.dy = Math.abs(normalizedY) > deadzone ? normalizedY * player.speed : 0;
+        }
+
+        function resetJoystick() {
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+            player.dx = 0;
+            player.dy = 0;
+            joystickActive = false;
+            joystickTouchId = null;
+        }
+
+        joystickArea.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!joystickActive) {
+                joystickActive = true;
+                joystickTouchId = e.changedTouches[0].identifier;
+                const touch = e.changedTouches[0];
+                handleJoystickMove(touch.clientX, touch.clientY);
+            }
+        }, { passive: false });
+
+        joystickArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    const touch = e.changedTouches[i];
+                    handleJoystickMove(touch.clientX, touch.clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        joystickArea.addEventListener('touchend', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    resetJoystick();
+                    break;
+                }
+            }
+        });
+
+        joystickArea.addEventListener('touchcancel', resetJoystick);
+
+        // Fire button touch handling
+        fireBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameRunning) {
+                shooting = true;
+                fireBtn.classList.add('active');
+            }
+        }, { passive: false });
+
+        fireBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            shooting = false;
+            fireBtn.classList.remove('active');
+        }, { passive: false });
+
+        fireBtn.addEventListener('touchcancel', () => {
+            shooting = false;
+            fireBtn.classList.remove('active');
+        });
+
+        // Pause button
+        pauseBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameRunning) {
+                paused = !paused;
+                pauseBtn.classList.add('active');
+            }
+        }, { passive: false });
+
+        pauseBtn.addEventListener('touchend', () => {
+            pauseBtn.classList.remove('active');
+        });
+
+        // Prevent default touch behavior on game area to avoid scrolling
+        document.body.addEventListener('touchmove', (e) => {
+            if (gameRunning) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Handle canvas resize for mobile
+        function resizeCanvas() {
+            const isMobile = window.matchMedia('(pointer: coarse), (max-width: 900px)').matches;
+
+            if (isMobile) {
+                const container = document.getElementById('gameContainer');
+                const availableHeight = window.innerHeight - 200; // Subtract mobile controls height
+                const availableWidth = window.innerWidth;
+
+                // Maintain aspect ratio
+                const aspectRatio = 800 / 600;
+                let newWidth = availableWidth;
+                let newHeight = availableWidth / aspectRatio;
+
+                if (newHeight > availableHeight) {
+                    newHeight = availableHeight;
+                    newWidth = availableHeight * aspectRatio;
+                }
+
+                // Set canvas display size
+                canvas.style.width = newWidth + 'px';
+                canvas.style.height = newHeight + 'px';
+
+                // Keep internal resolution for sharp rendering
+                canvas.width = 800;
+                canvas.height = 600;
+            } else {
+                canvas.style.width = '';
+                canvas.style.height = '';
+                canvas.width = 800;
+                canvas.height = 600;
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
+
         // Initialize and start
         initStars();
+        resizeCanvas();
         highScoreDisplay.textContent = `High Score: ${highScore}`;
         gameLoop();
     </script>
