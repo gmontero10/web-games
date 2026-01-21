@@ -393,7 +393,13 @@
         // Create asteroid
         function createAsteroid() {
             const size = Math.random() * 40 + 20;
-            const speed = Math.random() * 2 + 1 + level * 0.3;
+            // Easier speed for levels 1-2
+            let speed;
+            if (level <= 2) {
+                speed = Math.random() * 1.5 + 0.5 + level * 0.15;
+            } else {
+                speed = Math.random() * 2 + 1 + level * 0.3;
+            }
             asteroids.push({
                 x: Math.random() * (canvas.width - size),
                 y: -size,
@@ -779,8 +785,14 @@
                 }
             });
 
-            // Spawn asteroids
-            if (Math.random() < 0.02 + level * 0.005) {
+            // Spawn asteroids (easier for levels 1-2)
+            let spawnRate;
+            if (level <= 2) {
+                spawnRate = 0.012 + level * 0.003;
+            } else {
+                spawnRate = 0.02 + level * 0.005;
+            }
+            if (Math.random() < spawnRate) {
                 createAsteroid();
             }
         }
